@@ -1,0 +1,50 @@
+#####BAX452 HW4#####
+
+### Exercise 1.22
+### 1 Try doing several runs of the linear and k-NN code in that section, comparing results.
+
+# linear model
+```{r, echo=TRUE}
+library(freqparcoord)
+library(parallel)
+library(ggplot2)
+library(GGally)
+library(FNN)
+library(mvtnorm)
+data(mlb)
+
+xvalpart <- function(data, p) {
+  n <- nrow(data)
+  ntrain <- round(p*n)
+  trainidxs <- sample(1:n, ntrain, replace = FALSE)
+  list(train = data[trainidxs,], valid = data[-trainidxs,])
+}
+
+xvallm <- function(data, ycol, predvars, p, meanabs = TRUE){
+  tmp <- xvalpart(data, p)
+  train <- tmp$train
+  valid <- tmp$valid
+  trainy <- train[, ycol]
+  trainpreds <- train[, predvars]
+  trainpreds <- as.matrix(trainpreds)
+  lmout <- lm(trainy ~ trainpreds)
+  validpreds <- as.matrix(valid[, predvars])
+  predy <- cbind(1, validpreds) %*% coef(lmout)
+  realy <- valid[, ycol]
+  if (meanabs) return(mean(abs(predy - realy)))
+  list(predy = predy, realy = realy)
+}
+
+
+xvallm(mlb,5 ,c(4, 6), 2/3)
+```
+
+```{r}
+xvallm(mlb,5 ,c(4, 6), 2/3)
+```
+
+```{r}
+xvallm(mlb,5 ,c(4, 6), 2/3)
+```
+
+run 3 times, results are different
