@@ -1,0 +1,243 @@
+---
+
+output: github_document
+---
+
+##### BAX452 HW4#####
+```{r}
+library(parallel)
+library(ggplot2)
+library(GGally)
+library(FNN)
+library(mvtnorm)
+```
+### Exercise 1.22
+##### 1 Try doing several runs of the linear and k-NN code in that section, comparing results.
+
+```{r}
+
+# linear model
+library(freqparcoord)
+data(mlb)
+
+xvalpart <- function(data, p) {
+  n <- nrow(data)
+  ntrain <- round(p*n)
+  trainidxs <- sample(1:n, ntrain, replace = FALSE)
+  list(train = data[trainidxs,], valid = data[-trainidxs,])
+}
+
+xvallm <- function(data, ycol, predvars, p, meanabs = TRUE){
+  tmp <- xvalpart(data, p)
+  train <- tmp$train
+  valid <- tmp$valid
+  trainy <- train[, ycol]
+  trainpreds <- train[, predvars]
+  trainpreds <- as.matrix(trainpreds)
+  lmout <- lm(trainy ~ trainpreds)
+  validpreds <- as.matrix(valid[, predvars])
+  predy <- cbind(1, validpreds) %*% coef(lmout)
+  realy <- valid[, ycol]
+  if (meanabs) return(mean(abs(predy - realy)))
+  list(predy = predy, realy = realy)
+}
+
+
+xvallm(mlb,5 ,c(4, 6), 2/3)
+```
+```{r}
+# run 5 times, results are different
+#[1] 14.53308
+#[1] 14.10442
+#[1] 13.39469
+#[1] 13.46165
+#[1] 13.7847
+```
+
+
+
+```{r}
+#k-NN model
+
+library(dummies)
+library(regtools)
+library(car)
+set.seed(9999)
+
+xvalknn <- function(data, ycol, predvars,k, p, meanabs = TRUE){
+  data <- data[, c(predvars, ycol)]
+  ycol <- length(predvars) + 1
+  tmp <- xvalpart(data, p)
+  train <- tmp$train
+  valid <- tmp$valid
+  valid <- as.matrix(valid)
+  xd <- preprocessx(train[, -ycol],k)
+  kout <- knnest(train[,ycol], xd,k)
+  predy <- predict(kout, valid[,-ycol], TRUE)
+  realy <- valid[, ycol]
+  if (meanabs) return(mean(abs(predy - realy)))
+  list(predy = predy, realy = realy)
+}
+
+xvalknn(mlb,5, c(4,6), 25, 2/3)
+```
+```{r}
+# run 5 times, results are different
+#[1] 14.32817
+#[1] 14.13207
+#[1] 13.73988
+#[1] 14.16343
+#[1] 14.1968
+#The two methods gave similar results.
+```
+
+
+
+##### 2 . Extend (1.28) to include interaction terms for age and gender, and age2 and gender. 
+##### Run the new model, and find the estimated effect of being female, for a 32-year-old person with a Master's degree.
+```{r}
+library(freqparcoord)
+data(prgeng)
+prgeng$age2 <- prgeng$age^2
+edu <- prgeng$educ
+prgeng$ms <- as.integer(edu == 14)
+prgeng$phd <- as.integer(edu == 16)
+prgeng$fem <- prgeng$sex - 1
+tmp <- prgeng[edu >= 13,]
+pe <- tmp[, c(1,12,9,13,14,15,8)]
+pe <- as.matrix(pe)
+
+#adding age and gender, age2 and gender
+
+lm_wage = lm(wageinc ~ age + age2 + wkswrkd + ms + phd + fem + 
+     ms:fem + phd:fem + age:fem + age2 : fem, data = prgeng)
+summary(lm_wage)
+```
+
+```{r}
+predict(lm_wage, data.frame(age = 32,age2 = 32^2,wkswrkd = 52, ms = 1, phd = 0 ,fem = 1))
+
+```
+
+
+```{r}
+# 32 yrs old female with MS degree earns $67132 wage income
+```
+
+
+##### 3 Use lm() to form a prediction equation for density from the other variables (skipping the first three)
+##### comment on whether use of indirect methods in this way seems feasible.
+```{r}
+
+bodyfat <- read.csv('bodyfat.csv')
+lm_density = lm(density ~ age + weight + height + neck + chest + abdomen + hip + thigh + knee + ankle + biceps + forearm + wrist, data = bodyfat)
+summary(lm_density)
+```
+
+```{r}
+#from the summary we can see there are several variable are significat (p-value <0.05) predictors of density
+#indirect method seems a feasible way since abdomen, wrist, forearm and neck are easier to measure.
+```
+
+
+##### 4 
+
+##### (a) Write English prose that relates the overall mean height of people 
+##### and the gender-specific mean heights.
+
+```{r}
+#The overall mean height of people is a weighted average of the gender-specifiec mean heights,
+#with the weight for each gender being its proportion of the overall population.
+```
+
+##### (b) Write English prose that relates the overall proportion of people 
+##### taller than 70 inches to the gender-specific proportions.
+
+```{r}
+#The overall proportion of people taller than 70 inches is composed by 
+#proportion of female taller than 70 inches and proportion of male taller than 70 inches
+```
+
+
+
+### Exercise 2.14
+
+##### 1 Consider the census data
+##### (a) Form an approximate 95% confidence interval for b6 in the model
+```{r}
+
+library(freqparcoord)
+data(prgeng)
+prgeng$age2 <- prgeng$age^2
+edu <- prgeng$educ
+prgeng$ms <- as.integer(edu == 14)
+prgeng$phd <- as.integer(edu == 16)
+prgeng$fem <- prgeng$sex - 1
+tmp <- prgeng[edu >= 13,]
+pe <- tmp[, c(1,12,9,13,14,15,8)]
+pe <- as.matrix(pe)
+
+lm2_wage = lm(wageinc ~ age + age2 + wkswrkd + ms + phd + fem, data = prgeng)
+summary(lm2_wage)
+
+```
+
+```{r}
+# CI for b6
+b6_l95 = round((-11484.49 - 1.96 * 705.30), 2)
+b6_r95 = round((-11484.49 + 1.96 * 705.30), 2)
+sprintf("95 percent Confidence Interval for B6 female: (%s, %s)", b6_l95, b6_r95)
+```
+
+##### (b) Form an approximate 95% confidence interval for the gender effect
+##### for Master's degree holders, b6 + b7, in the model.
+```{r}
+lm3_wage = lm(wageinc ~ age + age2 + wkswrkd + ms + phd + fem + 
+                +                ms:fem + phd:fem , data = prgeng)
+summary(lm3_wage)
+
+```
+
+```{r}
+#CI for b6+b7
+b6b7_l95 = round((-4157.253 - 1.96 * 1728.329), 2)
+b6b7_r95 = round((-4157.253 + 1.96 * 1728.329), 2)
+sprintf("95 percent Confidence Interval for B6+B7: (%s, %s)", b6b7_l95, b6b7_r95)
+```
+##### 2 Extend the analysis in Section 2.8.5 to the full data set, 
+##### adding dummy variables indicating the second and third year. 
+##### Form an approximate 95% confidence interval for the difference between the coefficients of these two dummies.
+```{r}
+
+shar <- read.csv('day.csv')
+shar$temp2 <- shar$temp^2
+shar$clearday <- as.integer(shar$weathersit == 1)
+# yr=1 indicates 2nd yr, there's no data for 3rd yr
+lm_shar <- lm(registered ~ temp + temp2 + workingday + clearday + yr, data = shar)
+summary(lm_shar)
+
+```
+
+```{r}
+yr_l95 = round((1716.25 - 1.96 *  56.68), 2)
+yr_r95 = round((1716.25 + 1.96 *  56.68), 2)
+sprintf("95 percent Confidence Interval for B6+B7: (%s, %s)", yr_l95, yr_r95)
+```
+
+##### 3 Explain why each Di is (k-1)-variate normal, 
+##### and derive matrix expressions for the mean vector and covariance matrices.
+
+Since Hi is k-variate normal and Dij = Hi,j+1 - Hij, j=1,2,...k-1
+at age k-1, Di,k = Hi,k - Hi,k-1, there's no Di at age K
+Di is (k-1) variate normal
+mean vector is u = E[Di] = [E[D1], E[D2],...,E[Dk-1]]^T
+coveriance matrices is Sum = E[(Di- u)(Di - u) ^T] = [Cov[Di,Dj]; 1<= i, j<= k-1]
+
+
+##### 4 In the simulation in Section 2.9.3, it is claimed that p2 = 0:50. 
+##### Confirm this through derivation.
+
+set variance of xj =1 Y= x1+..+Xp and variance of e = p
+p^2 = 1 - Var(e) / Var(Y) 
+    = 1 - Var(e) / (Var(u(X)) + Var(e)) 
+    = 1 - p/(1*p+p) = 0.5
